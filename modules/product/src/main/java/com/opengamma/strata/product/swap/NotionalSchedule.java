@@ -93,7 +93,7 @@ public final class NotionalSchedule
    * Setting this to true indicates that the notional is transferred at the start of the trade.
    * This should typically be set to true in the case of an FX reset swap, or one with a varying notional.
    */
-  @PropertyDefinition
+  @PropertyDefinition(builderType = "Boolean")
   private final boolean initialExchange;
   /**
    * The flag indicating whether to exchange the differences in the notional during the lifetime of the swap.
@@ -115,7 +115,7 @@ public final class NotionalSchedule
   //-------------------------------------------------------------------------
   /**
    * Obtains an instance with a single amount that does not change over time.
-   * 
+   *
    * @param notional  the single notional that does not change over time
    * @return the notional amount
    */
@@ -129,7 +129,7 @@ public final class NotionalSchedule
 
   /**
    * Obtains an instance with a single amount that does not change over time.
-   * 
+   *
    * @param currency  the currency of the notional and swap payments
    * @param amount  the single notional amount that does not change over time
    * @return the notional amount
@@ -144,7 +144,7 @@ public final class NotionalSchedule
 
   /**
    * Obtains an instance with a notional amount that can change over time.
-   * 
+   *
    * @param currency  the currency of the notional and swap payments
    * @param amountSchedule  the schedule describing how the notional changes over time
    * @return the notional amount
@@ -178,16 +178,23 @@ public final class NotionalSchedule
   @ImmutablePreBuild
   private static void preBuild(Builder builder) {
     if (builder.fxReset != null) {
-      builder.initialExchange = true;
+      if (builder.initialExchange == null) {
+        builder.initialExchange = true;
+      }
       builder.intermediateExchange = true;
       builder.finalExchange = true;
     }
+
+    if(builder.initialExchange == null){
+      builder.initialExchange = false;
+    }
+
   }
 
   //-------------------------------------------------------------------------
   /**
    * Builds notional exchange events from the payment periods and notional exchange flags.
-   * 
+   *
    * @param payPeriods  the payment periods
    * @param initialExchangeDate  the date of the initial notional exchange
    * @param refData  the reference data to use
@@ -208,7 +215,7 @@ public final class NotionalSchedule
    * <p>
    * The {@code initialExchangeDate} is only used of {@code initialExchange} is true,
    * however it is intended that the value is always set to an appropriate date.
-   * 
+   *
    * @param payPeriods  the payment periods
    * @param initialExchangeDate  the date of the initial notional exchange
    * @param initialExchange  whether there is an initial exchange
@@ -331,7 +338,7 @@ public final class NotionalSchedule
       Currency currency,
       FxResetCalculation fxReset,
       ValueSchedule amount,
-      boolean initialExchange,
+      Boolean initialExchange,
       boolean intermediateExchange,
       boolean finalExchange) {
     JodaBeanUtils.notNull(currency, "currency");
@@ -677,7 +684,7 @@ public final class NotionalSchedule
     private Currency currency;
     private FxResetCalculation fxReset;
     private ValueSchedule amount;
-    private boolean initialExchange;
+    private Boolean initialExchange;
     private boolean intermediateExchange;
     private boolean finalExchange;
 
@@ -858,7 +865,7 @@ public final class NotionalSchedule
      * @param initialExchange  the new value
      * @return this, for chaining, not null
      */
-    public Builder initialExchange(boolean initialExchange) {
+    public Builder initialExchange(Boolean initialExchange) {
       this.initialExchange = initialExchange;
       return this;
     }
