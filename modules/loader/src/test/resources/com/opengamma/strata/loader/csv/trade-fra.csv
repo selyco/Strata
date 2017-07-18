@@ -1,0 +1,4 @@
+Type,Id Scheme,Id,Trade Date,Trade Time,Trade Zone,Convention,Period To Start,Period To End,Buy Sell,Currency,Notional,Index,Interpolated index,Fixed Rate,Start Date,End Date
+Fra,OG,123401,01/06/2017,11:05,Europe/London,GBP-LIBOR-3M,P2M,,Buy,,1000000,,,0.5,,
+Fra,OG,123402,01/06/2017,12:35,Europe/London,GBP-LIBOR-6M,,,Sell,,1000000,,,0.7,01/08/2017,01/02/2018
+Fra,OG,123403,01/06/2017,,,,,,Sell,,1000000,GBP-LIBOR-3M,GBP-LIBOR-6M,0.55,01/08/2017,15/01/2018
