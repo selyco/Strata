@@ -187,11 +187,14 @@ public final class TradeCsvLoader {
     int line = 2;
     for (CsvRow row : (Iterable<CsvRow>) () -> csv) {
       try {
-        String type = row.getField(TYPE_FIELD);
+        String type = row.getField(TYPE_FIELD).toUpperCase(Locale.ENGLISH);
         TradeInfo info = parseTradeInfo(row);
         switch (type.toUpperCase(Locale.ENGLISH)) {
           case "FRA":
-            trades.add(FraTradeCsvLoader.parseFra(row, info, refData));
+            trades.add(FraTradeCsvLoader.parse(row, info, refData));
+            break;
+          case "SWAP":
+            trades.add(SwapTradeCsvLoader.parse(row, info, refData));
             break;
           default:
             failures.add(FailureItem.of(FailureReason.PARSING, "CSV file trade type '{}' is not known at line {}", type, line));
