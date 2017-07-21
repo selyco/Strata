@@ -5,6 +5,15 @@
  */
 package com.opengamma.strata.loader.csv;
 
+import static com.opengamma.strata.collect.Guavate.toImmutableList;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.BUY_SELL_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.CONVENTION_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.END_DATE_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.FIXED_RATE_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.NOTIONAL_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.PERIOD_TO_START_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.START_DATE_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.TENOR_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.TRADE_DATE_FIELD;
 
 import java.math.BigDecimal;
@@ -15,10 +24,15 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableList;
 import com.opengamma.strata.basics.ReferenceData;
 import com.opengamma.strata.basics.date.Tenor;
+import com.opengamma.strata.basics.schedule.PeriodicSchedule;
+import com.opengamma.strata.basics.schedule.RollConvention;
+import com.opengamma.strata.basics.schedule.StubConvention;
 import com.opengamma.strata.collect.io.CsvRow;
 import com.opengamma.strata.product.Trade;
 import com.opengamma.strata.product.TradeInfo;
 import com.opengamma.strata.product.common.BuySell;
+import com.opengamma.strata.product.swap.RateCalculationSwapLeg;
+import com.opengamma.strata.product.swap.SwapLeg;
 import com.opengamma.strata.product.swap.SwapTrade;
 import com.opengamma.strata.product.swap.type.SingleCurrencySwapConvention;
 
@@ -28,20 +42,11 @@ import com.opengamma.strata.product.swap.type.SingleCurrencySwapConvention;
 final class SwapTradeCsvLoader {
 
   // CSV column headers
-  private static final String CONVENTION_FIELD = "Convention";
-  private static final String BUY_SELL_FIELD = "Buy Sell";
-//  private static final String CURRENCY_FIELD = "Currency";
-  private static final String NOTIONAL_FIELD = "Notional";
-//  private static final String INDEX_FIELD = "Index";
-//  private static final String INTERPOLATED_INDEX_FIELD = "Interpolated Index";
-  private static final String FIXED_RATE_FIELD = "Fixed Rate";
-  private static final String PERIOD_TO_START_FIELD = "Period To Start";
-  private static final String TENOR_FIELD = "Tenor";
-  private static final String START_DATE_FIELD = "Start Date";
-  private static final String END_DATE_FIELD = "End Date";
-//  private static final String DAY_COUNT_FIELD = "Day Count";
+  private static final String ROLL_CONVENTION_FIELD = "Roll Convention";
+  private static final String STUB_CONVENTION_FIELD = "Stub Convention";
+  private static final String FIRST_REGULAR_START_DATE_FIELD = "First Regular Start Date";
+  private static final String LAST_REGULAR_END_DATE_FIELD = "Last Regular End Date";
 
-  //-------------------------------------------------------------------------
   /**
    * Parses a FRA from the CSV row.
    * 
@@ -62,20 +67,14 @@ final class SwapTradeCsvLoader {
     Optional<Tenor> tenorOpt = row.findValue(TENOR_FIELD).map(s -> Tenor.parse(s));
     Optional<LocalDate> startDateOpt = row.findValue(START_DATE_FIELD).map(s -> TradeCsvLoader.parseDate(s));
     Optional<LocalDate> endDateOpt = row.findValue(END_DATE_FIELD).map(s -> TradeCsvLoader.parseDate(s));
-//    Optional<Currency> currencyOpt = row.findValue(CURRENCY_FIELD).map(s -> Currency.parse(s));
-//    Optional<IborIndex> indexOpt = row.findValue(INDEX_FIELD).map(s -> IborIndex.of(s));
-//    Optional<IborIndex> interpolatedOpt = row.findValue(INTERPOLATED_INDEX_FIELD).map(s -> IborIndex.of(s));
-//    Optional<DayCount> dayCountOpt = row.findValue(DAY_COUNT_FIELD).map(s -> DayCount.of(s));
-    // not parsing businessDayAdjustment, paymentDate, fixingDateOffset, discounting
+    Optional<RollConvention> rollConventionOpt = row.findValue(ROLL_CONVENTION_FIELD).map(s -> RollConvention.of(s));
+    Optional<StubConvention> stubConventionOpt = row.findValue(STUB_CONVENTION_FIELD).map(s -> StubConvention.of(s));
+    Optional<LocalDate> firstRegularStartDateOpt =
+        row.findValue(FIRST_REGULAR_START_DATE_FIELD).map(s -> TradeCsvLoader.parseDate(s));
+    Optional<LocalDate> lastRegEndDateOpt = row.findValue(LAST_REGULAR_END_DATE_FIELD).map(s -> TradeCsvLoader.parseDate(s));
 
     // use convention if available
     if (conventionOpt.isPresent()) {
-//      if (currencyOpt.isPresent() || indexOpt.isPresent() || interpolatedOpt.isPresent() || dayCountOpt.isPresent()) {
-//        throw new IllegalArgumentException(
-//            "CSV file 'Fra' trade had invalid combination of fields. When '" + CONVENTION_FIELD +
-//                "' is present these fields must not be present: " +
-//                ImmutableList.of(CURRENCY_FIELD, INDEX_FIELD, INTERPOLATED_INDEX_FIELD, DAY_COUNT_FIELD));
-//      }
       SingleCurrencySwapConvention convention = conventionOpt.get();
       // explicit dates take precedence over relative ones
       if (startDateOpt.isPresent() && endDateOpt.isPresent()) {
@@ -88,8 +87,8 @@ final class SwapTradeCsvLoader {
         }
         LocalDate startDate = startDateOpt.get();
         LocalDate endDate = endDateOpt.get();
-        // NOTE: payment date assumed to be the start date
-        return convention.toTrade(info, startDate, endDate, buySell, notional, fixedRate);
+        SwapTrade trade = convention.toTrade(info, startDate, endDate, buySell, notional, fixedRate);
+        return adjustSchedule(trade, rollConventionOpt, stubConventionOpt, firstRegularStartDateOpt, lastRegEndDateOpt);
       }
       // relative dates
       if (periodToStartOpt.isPresent() && tenorOpt.isPresent() && info.getTradeDate().isPresent()) {
@@ -104,24 +103,9 @@ final class SwapTradeCsvLoader {
         Period periodToStart = periodToStartOpt.get();
         Tenor tenor = tenorOpt.get();
         SwapTrade trade = convention.createTrade(tradeDate, periodToStart, tenor, buySell, notional, fixedRate, refData);
-        return trade.toBuilder().info(info).build();
+        trade = trade.toBuilder().info(info).build();
+        return adjustSchedule(trade, rollConventionOpt, stubConventionOpt, firstRegularStartDateOpt, lastRegEndDateOpt);
       }
-
-//    } else if (indexOpt.isPresent() && startDateOpt.isPresent() && endDateOpt.isPresent()) {
-//      IborIndex index = indexOpt.get();
-//      LocalDate startDate = startDateOpt.get();
-//      LocalDate endDate = endDateOpt.get();
-//      Fra.Builder builder = Fra.builder()
-//          .buySell(buySell)
-//          .notional(notional)
-//          .startDate(startDate)
-//          .endDate(endDate)
-//          .fixedRate(fixedRate)
-//          .index(index);
-//      currencyOpt.ifPresent(currency -> builder.currency(currency));
-//      interpolatedOpt.ifPresent(interpolated -> builder.indexInterpolated(interpolated));
-//      dayCountOpt.ifPresent(dayCount -> builder.dayCount(dayCount));
-//      return FraTrade.of(info, builder.build());
     }
     // no match
     throw new IllegalArgumentException(
@@ -131,8 +115,47 @@ final class SwapTradeCsvLoader {
             ImmutableList.of(CONVENTION_FIELD, TRADE_DATE_FIELD, PERIOD_TO_START_FIELD, TENOR_FIELD) +
             " or " +
             ImmutableList.of(CONVENTION_FIELD, START_DATE_FIELD, END_DATE_FIELD));
-//            " or " +
-//            ImmutableList.of(INDEX_FIELD, START_DATE_FIELD, END_DATE_FIELD));
+  }
+
+  private static Trade adjustSchedule(
+      SwapTrade trade,
+      Optional<RollConvention> rollConventionOpt,
+      Optional<StubConvention> stubConventionOpt,
+      Optional<LocalDate> firstRegularStartDateOpt,
+      Optional<LocalDate> lastRegEndDateOpt) {
+
+    if (!rollConventionOpt.isPresent() &&
+        !stubConventionOpt.isPresent() &&
+        !firstRegularStartDateOpt.isPresent() &&
+        !lastRegEndDateOpt.isPresent()) {
+      return trade;
+    }
+    ImmutableList<SwapLeg> legs = trade.getProduct().getLegs().stream()
+        .map(leg -> (RateCalculationSwapLeg) leg)
+        .map(leg -> adjustLeg(leg, rollConventionOpt, stubConventionOpt, firstRegularStartDateOpt, lastRegEndDateOpt))
+        .collect(toImmutableList());
+    return trade.toBuilder()
+        .product(trade.getProduct().toBuilder()
+            .legs(legs)
+            .build())
+        .build();
+  }
+
+  private static SwapLeg adjustLeg(
+      RateCalculationSwapLeg leg,
+      Optional<RollConvention> rollConventionOpt,
+      Optional<StubConvention> stubConventionOpt,
+      Optional<LocalDate> firstRegularStartDateOpt,
+      Optional<LocalDate> lastRegEndDateOpt) {
+
+    PeriodicSchedule.Builder scheduleBuilder = leg.getAccrualSchedule().toBuilder();
+    rollConventionOpt.ifPresent(rc -> scheduleBuilder.rollConvention(rc));
+    stubConventionOpt.ifPresent(sc -> scheduleBuilder.stubConvention(sc));
+    firstRegularStartDateOpt.ifPresent(date -> scheduleBuilder.firstRegularStartDate(date));
+    lastRegEndDateOpt.ifPresent(date -> scheduleBuilder.lastRegularEndDate(date));
+    return leg.toBuilder()
+        .accrualSchedule(scheduleBuilder.build())
+        .build();
   }
 
   //-------------------------------------------------------------------------

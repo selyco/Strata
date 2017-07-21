@@ -66,11 +66,27 @@ public final class TradeCsvLoader {
 
   private static final DateTimeFormatter DMY_SLASH = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH);
 
+  // shared CSV headers
+  static final String TRADE_DATE_FIELD = "Trade Date";
+  static final String CONVENTION_FIELD = "Convention";
+  static final String BUY_SELL_FIELD = "Buy Sell";
+  static final String CURRENCY_FIELD = "Currency";
+  static final String NOTIONAL_FIELD = "Notional";
+  static final String INDEX_FIELD = "Index";
+  static final String INTERPOLATED_INDEX_FIELD = "Interpolated Index";
+  static final String FIXED_RATE_FIELD = "Fixed Rate";
+  static final String PERIOD_TO_START_FIELD = "Period To Start";
+  static final String TENOR_FIELD = "Tenor";
+  static final String START_DATE_FIELD = "Start Date";
+  static final String END_DATE_FIELD = "End Date";
+  static final String BDC_FIELD = "Date Convention";
+  static final String BDC_CAL_FIELD = "Date Calendar";
+  static final String DAY_COUNT_FIELD = "Day Count";
+
   // CSV column headers
   private static final String TYPE_FIELD = "Type";
   private static final String ID_SCHEME_FIELD = "Id Scheme";
   private static final String ID_FIELD = "Id";
-  static final String TRADE_DATE_FIELD = "Trade Date";
   private static final String TRADE_TIME_FIELD = "Trade Time";
   private static final String TRADE_ZONE_FIELD = "Trade Zone";
 
@@ -195,6 +211,9 @@ public final class TradeCsvLoader {
             break;
           case "SWAP":
             trades.add(SwapTradeCsvLoader.parse(row, info, refData));
+            break;
+          case "TERMDEPOSIT":
+            trades.add(TermDepositTradeCsvLoader.parse(row, info, refData));
             break;
           default:
             failures.add(FailureItem.of(FailureReason.PARSING, "CSV file trade type '{}' is not known at line {}", type, line));

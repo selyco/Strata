@@ -1,6 +1,10 @@
-Type,Id Scheme,Id,Trade Date,Trade Time,Trade Zone,Convention,Period To Start,Tenor,Buy Sell,Currency,Notional,Index,Interpolated index,Fixed Rate,Start Date,End Date
-Fra,OG,123401,01/06/2017,11:05,Europe/London,GBP-LIBOR-3M,P2M,,Buy,,1000000,,,0.5,,
-Fra,OG,123402,01/06/2017,12:35,Europe/London,GBP-LIBOR-6M,,,Sell,,1000000,,,0.7,01/08/2017,01/02/2018
-Fra,OG,123403,01/06/2017,,,,,,Sell,,1000000,GBP-LIBOR-3M,GBP-LIBOR-6M,0.55,01/08/2017,15/01/2018
-Swap,OG,123404,01/06/2017,,,GBP-FIXED-1Y-LIBOR-3M,P1M,P5Y,Buy,,2000000,,,0.4,,
-Swap,OG,123405,01/06/2017,,,GBP-FIXED-6M-LIBOR-6M,,,BUY,,3100000,,,-0.01,01/08/2017,01/08/2022
+Type,Id Scheme,Id,Trade Date,Trade Time,Trade Zone,Convention,Period To Start,Tenor,Buy Sell,Currency,Notional,Index,Interpolated index,Fixed Rate,Start Date,End Date,Date Convention,Date Calendar,Day Count,Stub Convention
+Fra,OG,123401,01/06/2017,11:05,Europe/London,GBP-LIBOR-3M,P2M,,Buy,,1000000,,,0.5,,,,,,
+Fra,OG,123402,01/06/2017,12:35,Europe/London,GBP-LIBOR-6M,,,Sell,,1000000,,,0.7,01/08/2017,01/02/2018,,,,
+Fra,OG,123403,01/06/2017,,,,,,Sell,,1000000,GBP-LIBOR-3M,GBP-LIBOR-6M,0.55,01/08/2017,15/01/2018,,,Act/360,
+Swap,OG,123411,01/06/2017,,,GBP-FIXED-1Y-LIBOR-3M,P1M,P5Y,Buy,,2000000,,,0.4,,,,,,
+Swap,OG,123412,01/06/2017,,,GBP-FIXED-6M-LIBOR-6M,,,BUY,,3100000,,,-0.01,01/08/2017,01/08/2022,,,,
+Swap,OG,123413,01/06/2017,,,GBP-FIXED-6M-LIBOR-6M,,,Buy,,4000000,,,0.5,01/08/2017,01/09/2022,,,,LongFinal
+TermDeposit,OG,123421,01/06/2017,,,GBP-ShortDeposit-T0,,P2W,Sell,,400000,,,0.2,,,,,,
+TermDeposit,OG,123422,01/06/2017,,,GBP-ShortDeposit-T0,,,Sell,,500000,,,0.22,01/06/2017,15/06/2017,,,,
+TermDeposit,OG,123423,01/06/2017,,,,,,Buy,GBP,600000,,,0.23,01/06/2017,22/06/2017,ModifiedFollowing,GBLO,Act/365F,

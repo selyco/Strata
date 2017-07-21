@@ -5,17 +5,17 @@
  */
 package com.opengamma.strata.loader.csv;
 
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.BDC_CAL_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.BDC_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.BUY_SELL_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.CONVENTION_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.CURRENCY_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.DAY_COUNT_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.END_DATE_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.FIXED_RATE_FIELD;
-import static com.opengamma.strata.loader.csv.TradeCsvLoader.INDEX_FIELD;
-import static com.opengamma.strata.loader.csv.TradeCsvLoader.INTERPOLATED_INDEX_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.NOTIONAL_FIELD;
-import static com.opengamma.strata.loader.csv.TradeCsvLoader.PERIOD_TO_START_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.START_DATE_FIELD;
+import static com.opengamma.strata.loader.csv.TradeCsvLoader.TENOR_FIELD;
 import static com.opengamma.strata.loader.csv.TradeCsvLoader.TRADE_DATE_FIELD;
 
 import java.math.BigDecimal;
@@ -26,21 +26,24 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableList;
 import com.opengamma.strata.basics.ReferenceData;
 import com.opengamma.strata.basics.currency.Currency;
+import com.opengamma.strata.basics.date.BusinessDayAdjustment;
+import com.opengamma.strata.basics.date.BusinessDayConvention;
+import com.opengamma.strata.basics.date.BusinessDayConventions;
 import com.opengamma.strata.basics.date.DayCount;
+import com.opengamma.strata.basics.date.HolidayCalendarId;
 import com.opengamma.strata.basics.date.Tenor;
-import com.opengamma.strata.basics.index.IborIndex;
 import com.opengamma.strata.collect.io.CsvRow;
 import com.opengamma.strata.product.Trade;
 import com.opengamma.strata.product.TradeInfo;
 import com.opengamma.strata.product.common.BuySell;
-import com.opengamma.strata.product.fra.Fra;
-import com.opengamma.strata.product.fra.FraTrade;
-import com.opengamma.strata.product.fra.type.FraConvention;
+import com.opengamma.strata.product.deposit.TermDeposit;
+import com.opengamma.strata.product.deposit.TermDepositTrade;
+import com.opengamma.strata.product.deposit.type.TermDepositConvention;
 
 /**
- * Loads FRA trades from CSV files.
+ * Loads TermDeposit trades from CSV files.
  */
-final class FraTradeCsvLoader {
+final class TermDepositTradeCsvLoader {
 
   /**
    * Parses a FRA from the CSV row.
@@ -56,85 +59,87 @@ final class FraTradeCsvLoader {
     double notional = new BigDecimal(notionalStr).doubleValue();
     String fixedRateStr = row.getValue(FIXED_RATE_FIELD);
     double fixedRate = new BigDecimal(fixedRateStr).divide(BigDecimal.valueOf(100)).doubleValue();
-    Optional<FraConvention> conventionOpt = row.findValue(CONVENTION_FIELD).map(s -> FraConvention.of(s));
-    Optional<Period> periodToStartOpt = row.findValue(PERIOD_TO_START_FIELD).map(s -> Tenor.parse(s).getPeriod());
+    Optional<TermDepositConvention> conventionOpt = row.findValue(CONVENTION_FIELD).map(s -> TermDepositConvention.of(s));
+    Optional<Period> tenorOpt = row.findValue(TENOR_FIELD).map(s -> Tenor.parse(s).getPeriod());
     Optional<LocalDate> startDateOpt = row.findValue(START_DATE_FIELD).map(s -> TradeCsvLoader.parseDate(s));
     Optional<LocalDate> endDateOpt = row.findValue(END_DATE_FIELD).map(s -> TradeCsvLoader.parseDate(s));
     Optional<Currency> currencyOpt = row.findValue(CURRENCY_FIELD).map(s -> Currency.parse(s));
-    Optional<IborIndex> indexOpt = row.findValue(INDEX_FIELD).map(s -> IborIndex.of(s));
-    Optional<IborIndex> interpolatedOpt = row.findValue(INTERPOLATED_INDEX_FIELD).map(s -> IborIndex.of(s));
     Optional<DayCount> dayCountOpt = row.findValue(DAY_COUNT_FIELD).map(s -> DayCount.of(s));
-    // not parsing businessDayAdjustment, paymentDate, fixingDateOffset, discounting
+    Optional<BusinessDayConvention> bdcOpt = row.findValue(BDC_FIELD).map(s -> BusinessDayConvention.of(s));
+    Optional<HolidayCalendarId> bdcCalOpt = row.findValue(BDC_CAL_FIELD).map(s -> HolidayCalendarId.of(s));
 
     // use convention if available
     if (conventionOpt.isPresent()) {
-      if (currencyOpt.isPresent() || indexOpt.isPresent() || interpolatedOpt.isPresent() || dayCountOpt.isPresent()) {
+      if (currencyOpt.isPresent() || bdcOpt.isPresent() || bdcCalOpt.isPresent() || dayCountOpt.isPresent()) {
         throw new IllegalArgumentException(
-            "CSV file 'Fra' trade had invalid combination of fields. When '" + CONVENTION_FIELD +
+            "CSV file 'TermDeposit' trade had invalid combination of fields. When '" + CONVENTION_FIELD +
                 "' is present these fields must not be present: " +
-                ImmutableList.of(CURRENCY_FIELD, INDEX_FIELD, INTERPOLATED_INDEX_FIELD, DAY_COUNT_FIELD));
+                ImmutableList.of(CURRENCY_FIELD, BDC_FIELD, BDC_CAL_FIELD, DAY_COUNT_FIELD));
       }
-      FraConvention convention = conventionOpt.get();
+      TermDepositConvention convention = conventionOpt.get();
       // explicit dates take precedence over relative ones
       if (startDateOpt.isPresent() && endDateOpt.isPresent()) {
-        if (periodToStartOpt.isPresent()) {
+        if (tenorOpt.isPresent()) {
           throw new IllegalArgumentException(
-              "CSV file 'Fra' trade had invalid combination of fields. When these fields are found " +
+              "CSV file 'TermDeposit' trade had invalid combination of fields. When these fields are found " +
                   ImmutableList.of(CONVENTION_FIELD, START_DATE_FIELD, END_DATE_FIELD) +
                   " then these fields must not be present " +
-                  ImmutableList.of(PERIOD_TO_START_FIELD));
+                  ImmutableList.of(TENOR_FIELD));
         }
         LocalDate startDate = startDateOpt.get();
         LocalDate endDate = endDateOpt.get();
         // NOTE: payment date assumed to be the start date
-        return convention.toTrade(info, startDate, endDate, startDate, buySell, notional, fixedRate);
+        return convention.toTrade(info, startDate, endDate, buySell, notional, fixedRate);
       }
       // relative dates
-      if (periodToStartOpt.isPresent() && info.getTradeDate().isPresent()) {
+      if (tenorOpt.isPresent() && info.getTradeDate().isPresent()) {
         if (startDateOpt.isPresent() || endDateOpt.isPresent()) {
           throw new IllegalArgumentException(
-              "CSV file 'Fra' trade had invalid combination of fields. When these fields are found " +
-                  ImmutableList.of(CONVENTION_FIELD, PERIOD_TO_START_FIELD, TRADE_DATE_FIELD) +
+              "CSV file 'TermDeposit' trade had invalid combination of fields. When these fields are found " +
+                  ImmutableList.of(CONVENTION_FIELD, TENOR_FIELD, TRADE_DATE_FIELD) +
                   " then these fields must not be present " +
                   ImmutableList.of(START_DATE_FIELD, END_DATE_FIELD));
         }
         LocalDate tradeDate = info.getTradeDate().get();
-        Period periodToStart = periodToStartOpt.get();
-        FraTrade trade = convention.createTrade(tradeDate, periodToStart, buySell, notional, fixedRate, refData);
+        Period periodToStart = tenorOpt.get();
+        TermDepositTrade trade = convention.createTrade(tradeDate, periodToStart, buySell, notional, fixedRate, refData);
         return trade.toBuilder().info(info).build();
       }
 
-    } else if (startDateOpt.isPresent() && endDateOpt.isPresent() && indexOpt.isPresent()) {
+    } else if (startDateOpt.isPresent() && endDateOpt.isPresent() && currencyOpt.isPresent() && dayCountOpt.isPresent()) {
       LocalDate startDate = startDateOpt.get();
       LocalDate endDate = endDateOpt.get();
-      IborIndex index = indexOpt.get();
-      Fra.Builder builder = Fra.builder()
+      Currency currency = currencyOpt.get();
+      DayCount dayCount = dayCountOpt.get();
+      TermDeposit.Builder builder = TermDeposit.builder()
           .buySell(buySell)
+          .currency(currency)
           .notional(notional)
           .startDate(startDate)
           .endDate(endDate)
-          .fixedRate(fixedRate)
-          .index(index);
-      currencyOpt.ifPresent(currency -> builder.currency(currency));
-      interpolatedOpt.ifPresent(interpolated -> builder.indexInterpolated(interpolated));
-      dayCountOpt.ifPresent(dayCount -> builder.dayCount(dayCount));
-      return FraTrade.of(info, builder.build());
+          .dayCount(dayCount)
+          .rate(fixedRate);
+      if (bdcCalOpt.isPresent()) {
+        BusinessDayConvention bdc = bdcOpt.orElse(BusinessDayConventions.MODIFIED_FOLLOWING);
+        builder.businessDayAdjustment(BusinessDayAdjustment.of(bdc, bdcCalOpt.get()));
+      }
+      return TermDepositTrade.of(info, builder.build());
     }
     // no match
     throw new IllegalArgumentException(
-        "CSV file 'Fra' trade had invalid combination of fields. These fields are mandatory:" +
+        "CSV file 'TermDeposit' trade had invalid combination of fields. These fields are mandatory:" +
             ImmutableList.of(BUY_SELL_FIELD, NOTIONAL_FIELD, FIXED_RATE_FIELD) +
             " and one of these combinations is mandatory: " +
-            ImmutableList.of(CONVENTION_FIELD, TRADE_DATE_FIELD, PERIOD_TO_START_FIELD) +
+            ImmutableList.of(CONVENTION_FIELD, TRADE_DATE_FIELD, TENOR_FIELD) +
             " or " +
             ImmutableList.of(CONVENTION_FIELD, START_DATE_FIELD, END_DATE_FIELD) +
             " or " +
-            ImmutableList.of(START_DATE_FIELD, END_DATE_FIELD, INDEX_FIELD));
+            ImmutableList.of(START_DATE_FIELD, END_DATE_FIELD, CURRENCY_FIELD, DAY_COUNT_FIELD));
   }
 
   //-------------------------------------------------------------------------
   // Restricted constructor.
-  private FraTradeCsvLoader() {
+  private TermDepositTradeCsvLoader() {
   }
 
 }
